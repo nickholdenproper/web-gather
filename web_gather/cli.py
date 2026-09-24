@@ -10,6 +10,7 @@ from typing import List, Optional
 import typer
 
 from . import __version__
+from .answer import AskOptions, ask as run_ask
 from .llm import resolve_client
 from .pipeline import PipelineOptions, crawl
 from .research import ResearchOptions
@@ -114,6 +115,36 @@ def search(
         typer.echo(f"     {r.url}")
         if r.snippet:
             typer.echo(f"     {r.snippet[:160]}")
+
+
+@app.command("ask")
+def ask_cmd(
+    question: str = typer.Argument(..., help="Question; answer is compiled from live web research into ONE AI paragraph."),
+    engine: str = typer.Option("auto", "--engine", help=_SEARCH_ENGINES),
+    max_sites: int = typer.Option(4, "--max-sites", help="Pages to read."),
+    browser_mode: str = typer.Option("auto", "--browser", help="auto | always | never"),
+    use_llm: bool = typer.Option(
+        True,
+        "--llm/--no-llm",
+        help="Generate the paragraph with the free Ollama model (cloud "
+        "OLLAMA_API_KEY or local). Without one, a compiled paragraph is used.",
+    ),
+) -> None:
+    """Ask a question and get a sourced AI paragraph (web research)."""
+    from .answer import client_if_available
+
+    model = client_if_available(use_llm)
+    opts = AskOptions(engine=engine, max_sites=max_sites, browser_mode=browser_mode, use_llm=use_llm)
+    typer.echo(f"asking: {question}")
+    result = run_ask(question, opts, llm=model)
+    typer.echo("")
+    typer.echo(result.paragraph)
+    typer.echo("")
+    if not result.used_llm:
+        typer.echo("[compiled paragraph - set OLLAMA_API_KEY in .env for an AI-written answer]")
+    typer.echo("sources:")
+    for i, s in enumerate(result.sources, start=1):
+        typer.echo(f"  {i}. {s.title}  {s.url}")
 
 
 @app.command()

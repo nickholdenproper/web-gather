@@ -31,7 +31,15 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except ImportError:  # pragma: no cover
+    pass
+
 from . import __version__
+from .answer import AskOptions, ask
 from .llm import resolve_client
 from .pipeline import PipelineOptions, PipelineResult, crawl
 from .research import ResearchOptions, ResearchResult, research
@@ -84,6 +92,14 @@ class ResearchOptionsModel(BaseModel):
 class ResearchRequest(BaseModel):
     goal: str = Field(min_length=1)
     options: Optional[ResearchOptionsModel] = None
+
+
+class AskRequest(BaseModel):
+    question: str = Field(min_length=1)
+    engine: str = "auto"
+    max_sites: int = Field(6, ge=1, le=15)
+    browser_mode: str = Field("auto", pattern="^(auto|always|never)$")
+    use_llm: bool = True
 
 
 class _Job:
@@ -259,6 +275,22 @@ def create_app(
     @app.get("/v1/tools")
     def tools() -> dict:
         return {"tools": TOOLS}
+
+    # ---------------- ask: one paragraph answer ----------------
+
+    @app.post("/v1/ask")
+    def ask_question(request: AskRequest) -> dict:
+        from .answer import client_if_available
+
+        opts = AskOptions(
+            engine=request.engine,
+            max_sites=request.max_sites,
+            browser_mode=request.browser_mode,
+            use_llm=request.use_llm,
+        )
+        model = client_if_available(request.use_llm)
+        result = ask(request.question, opts, llm=model)
+        return result.to_dict()
 
     # ---------------- research jobs ----------------
 

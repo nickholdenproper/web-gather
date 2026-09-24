@@ -12,6 +12,9 @@ services, no per-site selectors.
   reads them, and returns **verifiable evidence** — claim + exact quote + source +
   confidence (`findings.json`, `findings.md`, `report.md`). Heuristic by default;
   optional free LLM via Ollama (cloud or local).
+- **Ask** a question: gathers pages, extracts the evidence, and answers in **one
+  AI-written paragraph** with sources (free Ollama LLM; falls back to a compiled
+  paragraph when unconfigured).
 - **Connectable**: browser GUI, REST API with open CORS (any website can call it),
   and an MCP server so Claude/Cursor/any AI can use the tools.
 
@@ -34,6 +37,10 @@ webgather search "newest Windows 13 leaks"
 
 # Research a goal into evidence (heuristic, offline)
 webgather research "Are ultra-processed foods linked to heart disease?"
+
+# Ask a question -> one AI-paragraph answer with sources
+# (heuristic compiled paragraph until you set OLLAMA_API_KEY in .env)
+webgather ask "Are ultra-processed foods linked to heart disease?"
 
 # Research with a free LLM (set OLLAMA_API_KEY in .env for cloud, or run Ollama locally)
 webgather research "..." --llm
@@ -77,6 +84,7 @@ GET  /v1/tools                                  machine-readable AI tool schema
 POST /v1/research                               {"goal":"...","options":{...}}
 GET  /v1/research/{id}                          evidence findings
 GET  /v1/research/{id}/files/{name}             findings.json / report.md
+POST /v1/ask                                    {"question":"...","use_llm":true} -> one answer paragraph
 ```
 
 Every run is saved under `api_jobs/<job_id>/` or `research_jobs/<job_id>/`.

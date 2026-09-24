@@ -64,6 +64,7 @@ def parse_ddg(html: str, engine: str = "ddg") -> list["SearchResult"]:
         url = a.get("href")
         if not url:
             continue
+        url = _real_url(url)
         if url.startswith("//") or not urlparse(url).scheme:
             url = "https:" + url if url.startswith("//") else "https://" + url
         title = " ".join(a.get_text(" ", strip=True).split())
@@ -72,6 +73,21 @@ def parse_ddg(html: str, engine: str = "ddg") -> list["SearchResult"]:
         snippet = " ".join(snippet_el.get_text(" ", strip=True).split()) if snippet_el else ""
         out.append(SearchResult(engine, title, url, snippet, i + 1))
     return out
+
+
+def _real_url(href: str) -> str:
+    """Unwrap DuckDuckGo /l/?uddg=... redirect links to the real target URL.
+
+    DDG serves results via https://duckduckgo.com/l/?uddg=<urlencode(target)>;
+    fetching those links asks DuckDuckGo's robots.txt (which forbids /l/) and
+    breaks the crawl. The underlying engines return real links already.
+    """
+    parsed = urlparse(href)
+    if parsed.netloc == "duckduckgo.com" and parsed.path.startswith("/l/"):
+        target = parse_qs(parsed.query).get("uddg")
+        if target:
+            return target[0]
+    return href
 
 
 def parse_feed(body: str, engine: str) -> list["SearchResult"]:

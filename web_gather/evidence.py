@@ -82,6 +82,14 @@ def _extract_heuristic(
             scored.append((para, hit_score * 10 + boost))
     scored.sort(key=lambda x: x[1], reverse=True)
 
+    # Fallback: no goal-token match at all -> keep the most substantive
+    # passages anyway (substantial prose with a real sentence), low confidence.
+    if not scored:
+        substantive = [p for p in paragraphs if len(p) >= 200]
+        if not substantive:
+            substantive = paragraphs[:2]
+        scored = [(p, 0) for p in substantive[:2]]
+
     items: list[EvidenceItem] = []
     for para, score in scored[:max_findings]:
         sentence = _best_sentence(para, tokens)

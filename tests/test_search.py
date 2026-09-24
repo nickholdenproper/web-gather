@@ -73,6 +73,18 @@ class ParserTest(unittest.TestCase):
         self.assertEqual(r[1].url, "https://beta.com/story")  # protocol-relative fixed
         self.assertEqual(r[0].position, 1)
 
+    def test_parse_ddg_unwraps_redirect(self):
+        from web_gather.search import _real_url
+
+        ddg = (
+            '<a class="result__a" href="https://duckduckgo.com/l/?uddg=https%3A%2F%2Fgov.org%2Fa'
+            "&rut=abc\">Real Target</a>"
+        )
+        r = parse_ddg(ddg)
+        self.assertEqual(r[0].url, "https://gov.org/a")
+        # plain links pass through unchanged
+        self.assertEqual(_real_url("https://plain.org/x"), "https://plain.org/x")
+
     def test_parse_feed(self):
         r = parse_feed(GOOGLENEWS_RSS, "googlenews")
         self.assertEqual(len(r), 2)
