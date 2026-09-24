@@ -73,7 +73,7 @@ def ask(
     browser: Optional[BrowserSession] = None,
 ) -> AnswerResult:
     """Research a question and return one compiled paragraph + sources."""
-    opts = opts or AskOptions(question=question)
+    opts = opts or AskOptions()
 
     # Gathering: heuristic (fast, no extra LLM turns). One LLM call for the paragraph.
     research_opts = ResearchOptions(
@@ -95,7 +95,7 @@ def ask(
         browser=browser,
     )
 
-    model = llm if (opts.use_llm and llm is not None) else client_if_available(opts.use_llm)
+    model = llm if opts.use_llm else None
     paragraph, used_llm = _paragraph(question, gathered.findings, gathered.selected, model)
 
     sources = [
