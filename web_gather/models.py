@@ -42,6 +42,7 @@ class CrawlStatus:
     empty: int = 0
     errors: int = 0
     duplicates: int = 0
+    blocked: int = 0
     skipped_depth: int = 0
 
     def to_dict(self) -> dict:

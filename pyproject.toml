@@ -4,13 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "web-gather"
-version = "0.1.0"
-description = "LLM-style web scraper - crawls feeds, sitemaps and links, cleans pages into readable articles (no site-specific selectors), and builds a plain-text corpus. Everything free, no API keys."
+version = "0.2.0"
+description = "LLM-style web research agent - crawls feeds/sitemaps/links via HTTP or a real headless browser, searches the web free (no API keys), extracts goal-relevant findings as verifiable evidence, and builds a corpus. CLI + REST API + GUI + MCP."
 authors = [{ name = "Hindham A.F" }]
 license = { text = "Free-to-Use License 1.0 - see LICENSE (free to use/modify; not for standalone resale)" }
 requires-python = ">=3.10"
 dependencies = [
     "httpx",
+    "requests",
     "trafilatura",
     "readability-lxml",
     "feedparser",
@@ -18,10 +19,19 @@ dependencies = [
     "typer>=0.12",
     "fastapi>=0.110",
     "uvicorn>=0.29",
+    "python-dotenv",
 ]
+
+[project.optional-dependencies]
+browser = ["playwright"]
+mcp = ["mcp>=1.0"]
 
 [project.scripts]
 webgather = "web_gather.cli:app"
+webgather-mcp = "web_gather.mcp_server:main"
 
 [tool.setuptools]
-packages = ["web_gather"]
+packages = ["web_gather", "web_gather.static"]
+
+[tool.setuptools.package-data]
+web_gather = ["static/*.html"]

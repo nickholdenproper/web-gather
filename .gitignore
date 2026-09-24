@@ -9,3 +9,8 @@ dist/
 output/
 scraped/
 *.html
+api_jobs/
+research_jobs/
+
+# secrets
+.env

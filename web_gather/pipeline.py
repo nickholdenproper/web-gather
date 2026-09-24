@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from .blocks import BlockList
+from .browser import BrowserSession, HybridFetcher
 from .dedupe import content_fingerprint, normalize_url
 from .discover import (
     feed_entries,
@@ -38,6 +40,9 @@ class PipelineOptions:
         retries: int = 2,
         ignore_robots: bool = False,
         follow_feed_sitemap: bool = True,
+        browser_mode: str = "auto",
+        blocked: Optional[list[str]] = None,
+        allowed: Optional[list[str]] = None,
         out_dir: Optional[Path] = None,
     ):
         self.max_pages = max_pages
@@ -49,6 +54,9 @@ class PipelineOptions:
         self.retries = retries
         self.ignore_robots = ignore_robots
         self.follow_feed_sitemap = follow_feed_sitemap
+        self.browser_mode = browser_mode if browser_mode in ("auto", "always", "never") else "auto"
+        self.blocked = blocked or []
+        self.allowed = allowed or []
         self.out_dir = out_dir or Path.cwd() / "output"
 
 
@@ -70,16 +78,26 @@ def crawl(
     sources: list[str],
     opts: Optional[PipelineOptions] = None,
     fetcher: Optional[Fetcher] = None,
+    browser: Optional[BrowserSession] = None,
 ) -> PipelineResult:
     """Crawl ``sources`` (URLs, feeds, sitemaps) and return processed articles."""
     opts = opts or PipelineOptions()
-    fetcher = fetcher or Fetcher(
+    http_fetcher = fetcher or Fetcher(
         delay=opts.delay,
         concurrency_per_domain=2,
         timeout=opts.timeout,
         retries=opts.retries,
         ignore_robots=opts.ignore_robots,
     )
+    blocklist = BlockList(blocked=opts.blocked, allowed=opts.allowed)
+
+    # Browser promotion: auto (HTTP first, browser only when needed) / always / never.
+    if opts.browser_mode == "never" or browser is None and opts.browser_mode == "auto":
+        active_fetcher = http_fetcher
+    elif browser is not None:
+        active_fetcher = HybridFetcher(http_fetcher, browser, opts.browser_mode)
+    else:  # "always" without a browser session -> offer the real browser
+        active_fetcher = HybridFetcher(http_fetcher, BrowserSession(), "always")
 
     status = CrawlStatus(queued=len(sources))
     state_lock = threading.Lock()
@@ -96,6 +114,9 @@ def crawl(
     frontier: "queue.Queue[tuple[str, int]]" = queue.Queue()
 
     def enqueue(url: str, depth: int) -> None:
+        if blocklist.blocks(url):
+            bump(blocked=1)
+            return
         norm = normalize_url(url)
         with state_lock:
             if norm in seen_urls:
@@ -120,7 +141,7 @@ def crawl(
     def process(url: str, depth: int) -> Optional[Article]:
         now = datetime.now(timezone.utc).isoformat()
         try:
-            raw = fetcher.get(url)
+            raw = active_fetcher.get(url)
             if raw.status_code != 200:
                 raise IOError(f"HTTP {raw.status_code}")
             body = raw.text
@@ -226,6 +247,9 @@ def _opts_dict(opts: PipelineOptions) -> dict:
         "max_pages": opts.max_pages,
         "max_depth": opts.max_depth,
         "same_domain": opts.same_domain,
+        "browser_mode": opts.browser_mode,
+        "blocked": opts.blocked,
+        "allowed": opts.allowed,
         "delay": opts.delay,
         "concurrency": opts.concurrency,
         "timeout": opts.timeout,
