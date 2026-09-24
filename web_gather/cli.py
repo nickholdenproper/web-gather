@@ -159,7 +159,7 @@ def serve(
     port: int = typer.Option(8001, "--port"),
     open_browser: bool = typer.Option(False, "--open", "-O", help="Open the web GUI in a browser."),
     cors_origin: List[str] = typer.Option(
-        None, "--cors-origin", help="Restrict CORS to this origin (repeatable). Default: open (*)."
+        [], "--cors-origin", help="Restrict CORS to this origin (repeatable). Default: open (*)."
     ),
 ) -> None:
     """Serve the web GUI + REST API + MCP-friendly endpoints."""
