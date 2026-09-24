@@ -10,16 +10,19 @@ evidence-compiled paragraph is produced. Sources are always returned.
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 from typing import Optional
 
 from .browser import BrowserSession
-from .evidence import EvidenceItem
+from .evidence import EvidenceItem, clean_snippet
 from .llm import LLMClient, local_available, resolve_client
 from .research import ResearchOptions, ResearchResult, research as run_research
 from .select import SelectedSite
+
+_CLICKBAIT = re.compile(r"\$\s*\d[\d,]*|top\s+\d+\b|\d+\s+ways?\b|shocking|nightmare|bombshell")
 
 
 @dataclass
@@ -174,17 +177,29 @@ def _paragraph_heuristic(
             "clear, quotable evidence answering your question could be extracted "
             "from them. Try rephrasing, or use the research mode for a deeper pass."
         )
-    chunks = []
-    used = set()
-    for f in findings[:6]:
-        host = urlparse(f.source_url).netloc.replace("www.", "").split(":")[0]
-        key = (host, f.finding[:60])
-        if key in used:
+    hosts = {f.source_url: urlparse(f.source_url).netloc.replace("www.", "").split(":")[0] for f in findings}
+    parts = []
+    seen = set()
+    for f in findings:
+        txt = clean_snippet(f.finding)
+        if len(txt) < 30:
             continue
-        used.add(key)
-        chunks.append(f"{f.finding} (per {host}, confidence {f.confidence:.2f})")
-    lead = (
-        f"Based on evidence from {len(used)} source{'s' if len(used) != 1 else ''} "
-        f"(across {len(selected)} shortlisted pages), "
-    )
-    return lead + "; ".join(chunks) + "."
+        if _CLICKBAIT.search(txt):
+            continue
+        key = txt[:44].lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        parts.append((txt, hosts.get(f.source_url, "the web"), f.confidence))
+        if len(parts) >= 4:
+            break
+    if not parts:
+        return (
+            "The pages reviewed did not yield a quotable answer. Try rephrasing "
+            "the question, or set OLLAMA_API_KEY in .env for an AI-written answer."
+        )
+    host_list = ", ".join(dict.fromkeys(h for _, h, _ in parts))
+    n = len(parts)
+    lead = f"According to {n} source{'s' if n != 1 else ''} ({host_list}), "
+    body = "; ".join(f"{txt} (per {host}, confidence {conf:.2f})" for txt, host, conf in parts)
+    return lead + body + "."

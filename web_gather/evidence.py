@@ -70,6 +70,7 @@ def _extract_heuristic(
         paragraphs = [p.strip() for p in text.split("\n") if len(p.strip()) > 80]
     if not paragraphs and len(text) > 80:
         paragraphs = [text]
+    paragraphs = [p for p in paragraphs if not _looks_like_table(p)]
 
     scored = []
     for para in paragraphs:
@@ -93,28 +94,65 @@ def _extract_heuristic(
     items: list[EvidenceItem] = []
     for para, score in scored[:max_findings]:
         sentence = _best_sentence(para, tokens)
+        cleaned = clean_snippet(sentence)
+        if len(cleaned) < 30:
+            continue
         confidence = min(0.95, 0.35 + score / 60)
         items.append(
             EvidenceItem(
-                finding=_finding_from(para, sentence, tokens),
+                finding=cleaned[:160],
                 source_url=source_url,
                 page_title=title,
-                quote=sentence,
+                quote=cleaned,
                 confidence=round(confidence, 2),
             )
         )
     return items
 
 
+def clean_snippet(text: str) -> str:
+    """Human-readable snippet: strip markdown, tables, URLs, crammed text."""
+    text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", text)  # markdown links -> label
+    text = re.sub(r"https?://\S+", "", text)
+    text = text.replace("|", " ")
+    text = _WS.sub(" ", text).strip()
+    text = re.sub(r"\s+([,.;:!?])", r"\1", text)
+    text = re.sub(r"^\s*\d{1,2},\s*\d{4}\s*[—–-]?\s*", "", text)  # dateline prefix
+    text = re.sub(r"^\s*[A-Z][a-z]{2}\s+\d{1,2},\s+\d{4}\s*", "", text)  # "Aug 22, 2026"
+    if len(text) <= 60:
+        return text
+    end = re.search(r"(?<=[a-z0-9)])[.!?][)\"']?\s", text)
+    if end:
+        return text[: end.end()].strip()
+    text = text[:160]
+    space = text.rfind(" ")
+    if space > 40:
+        text = text[:space]
+    return text.rstrip(" ,;:-|")
+
+
+def _looks_like_table(text: str) -> bool:
+    lines = text.splitlines()[:12]
+    for ln in lines:
+        stripped = ln.strip()
+        if re.fullmatch(r"\|?-{3,}\|?\s*", stripped):
+            return True
+        if stripped.count("|") >= 3 and len(stripped) < 220:
+            return True
+    return False
+
+
 def _best_sentence(para: str, tokens: set[str]) -> str:
-    sentences = re.split(r"(?<=[.!?])\s+", para)
+    parts = re.split(r"(?<=[.!?])\s+", para)
+    sentences = [s for s in parts if len(s.strip()) >= 20 and not _looks_like_table(s)]
+    if not sentences:
+        sentences = parts
     best = sentences[0] if sentences else para
     best_hits = -1
     for s in sentences:
         hits = sum(1 for t in tokens if t in s.lower())
         if hits > best_hits:
             best, best_hits = s, hits
-    best = _WS.sub(" ", best).strip()
     return best[:500]
 
 

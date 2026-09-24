@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>web-gather studio</title>
+<style>
+  :root { --bg:#0f1115; --panel:#171a21; --line:#262b36; --text:#e8eaf0; --muted:#9aa2b1; --acc:#4f8cff; --ok:#3ecf8e; --err:#ff6b6b; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.5 ui-monospace, Consolas, monospace; }
+  header { display:flex; align-items:center; gap:16px; padding:14px 20px; border-bottom:1px solid var(--line); }
+  header h1 { font-size:16px; margin:0; }
+  header .sub { color:var(--muted); font-size:12px; }
+  nav { display:flex; gap:6px; margin-left:auto; }
+  nav button { background:transparent; color:var(--muted); border:1px solid var(--line); padding:6px 12px; border-radius:6px; cursor:pointer; }
+  nav button.active { color:var(--acc); border-color:var(--acc); }
+  main { max-width:1100px; margin:0 auto; padding:20px; }
+  .tab { display:none; }
+  .tab.active { display:block; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:16px; }
+  label { display:block; color:var(--muted); font-size:12px; margin:0 0 4px; }
+  input[type=text], textarea, select { width:100%; background:#0d0f13; color:var(--text); border:1px solid var(--line); border-radius:6px; padding:8px 10px; font:inherit; }
+  textarea { min-height:70px; resize:vertical; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .row > * { flex:1 1 auto; }
+  button.act { background:var(--acc); color:#fff; border:none; padding:9px 18px; border-radius:6px; cursor:pointer; font-weight:600; }
+  button.act:hover { filter:brightness(1.1); }
+  .muted { color:var(--muted); font-size:12px; }
+  pre.code { background:#0d0f13; border:1px solid var(--line); border-radius:6px; padding:10px; overflow:auto; font:12px/1.5 ui-monospace, monospace; white-space:pre-wrap; }
+  .result { margin-top:12px; }
+  .result table { width:100%; border-collapse:collapse; font-size:13px; }
+  .result th, .result td { text-align:left; padding:8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  .result th { color:var(--muted); font-weight:600; }
+  a { color:var(--acc); }
+  .badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; background:var(--line); color:var(--muted); }
+  .badge.done { color:var(--ok); border-color:var(--ok); }
+  .badge.err { color:var(--err); border-color:var(--err); }
+  .ptag { color:var(--muted); font-size:11px; }
+  details { margin-top:8px; }
+  summary { cursor:pointer; color:var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>web-gather studio</h1>
+  <span class="sub">free web research &middot; no API keys &middot; <span id="v">v?</span></span>
+  <nav>
+    <button class="active" data-tab="ask">Ask</button>
+    <button data-tab="research">Deep research</button>
+    <button data-tab="search">Search</button>
+    <button data-tab="crawl">Crawl</button>
+    <button data-tab="code">Code</button>
+  </nav>
+</header>
+
+<main>
+  <section id="tab-ask" class="tab active">
+    <div class="card">
+      <textarea id="a-q" placeholder="Ask anything - it will search the web and answer in one paragraph, e.g. Are ultra-processed foods linked to heart disease?" onkeydown="if(event.key==='Enter' && (event.ctrlKey||event.metaKey))doAsk()"></textarea>
+      <div class="row" style="margin-top:10px">
+        <label style="margin:0 6px 0 0; align-self:center"><input id="a-llm" type="checkbox" checked> AI paragraph (free Ollama)</label>
+        <button class="act" onclick="doAsk()">Ask</button>
+      </div>
+      <p class="muted">Gathers pages from the web, extracts the evidence, then answers in one paragraph with sources.</p>
+      <p id="a-ai-note" class="muted" style="display:none;color:var(--acc)">AI not configured - add <code>OLLAMA_API_KEY</code> to <code>.env</code> (or run local Ollama) for an AI-written paragraph; for now you get a compiled one.</p>
+    </div>
+    <div id="a-out"></div>
+  </section>
+
+  <section id="tab-search" class="tab">
+    <div class="card">
+      <div class="row">
+        <input id="s-q" type="text" placeholder="search query, e.g. newest Windows 13 leaks" onkeydown="if(event.key==='Enter')doSearch()">
+        <select id="s-engine" title="search engine">
+          <option value="auto">auto</option>
+          <option value="ddg">DuckDuckGo</option>
+          <option value="googlenews">Google News (RSS)</option>
+          <option value="bingnews">Bing News (RSS)</option>
+          <option value="mojeek">Mojeek</option>
+          <option value="marginalia">Marginalia</option>
+          <option value="reddit">Reddit</option>
+          <option value="google">Google (browser, opt-in)</option>
+          <option value="ddg-browser">DuckDuckGo (browser)</option>
+        </select>
+        <button class="act" onclick="doSearch()">Search</button>
+      </div>
+    </div>
+    <div id="s-out" class="result"></div>
+  </section>
+
+  <section id="tab-crawl" class="tab">
+    <div class="card">
+      <div class="row">
+        <input id="c-sources" type="text" value="https://news.example.com/feed.xml"
+               placeholder="seed URLs, comma separated (pages / feeds / sitemaps)">
+      </div>
+      <div class="row" style="margin-top:10px">
+        <input id="c-max" type="text" value="20" title="max pages" style="width:80px">
+        <input id="c-block" type="text" placeholder="block domains (comma) - optional">
+        <button class="act" onclick="doCrawl()">Crawl corpus</button>
+      </div>
+      <p class="muted">Or: search first, then crawl the best results.</p>
+      <div class="row">
+        <input id="c-q" type="text" placeholder="search intent, e.g. latest AI regulation news" style="flex:2">
+        <select id="c-engine" style="flex:1">
+          <option value="auto">auto</option>
+          <option>ddg</option><option>googlenews</option><option>bingnews</option>
+        </select>
+        <button class="act" onclick="doSearchCrawl()">Search &amp; crawl</button>
+      </div>
+    </div>
+    <div id="c-out" class="result"></div>
+  </section>
+
+  <section id="tab-research" class="tab">
+    <div class="card">
+      <textarea id="r-goal" placeholder="Research goal, e.g. What are the main health risks of ultra-processed foods, and which new studies in 2026 support each claim?"></textarea>
+      <div class="row" style="margin-top:10px">
+        <input id="r-sites" type="text" value="6" style="width:70px" title="sites to read">
+        <label style="margin:0 6px 0 0; align-self:center"><input id="r-llm" type="checkbox"> use free LLM (Ollama)</label>
+        <button class="act" onclick="doResearch()">Research</button>
+      </div>
+      <p class="muted">Returns verifiable evidence: claim + exact quote + source + confidence.</p>
+    </div>
+    <div id="r-out" class="result"></div>
+  </section>
+
+  <section id="tab-code" class="tab">
+    <div class="card">
+      <h3 style="margin-top:0">Use from any website</h3>
+      <p class="muted">CORS is open by default, so browser code from any origin can call the API.</p>
+      <pre class="code">// search
+const r = await fetch('http://localhost:8001/v1/search?q=windows+13+leaks');
+const data = await r.json();
+data.results.forEach(x => console.log(x.title, x.url));
+
+// crawl corpus (background job, poll status)
+let job = await fetch('/v1/jobs', {method:'POST', headers:{'Content-Type':'application/json'},
+  body: JSON.stringify({sources:['https://news.example.com/feed.xml'], options:{max_pages:20}})});
+let id = (await job.json()).job_id;
+while (true) {
+  let s = await (await fetch(`/v1/jobs/${id}`)).json();
+  console.log(s.state, s.status);
+  if (s.state === 'done') break;
+  await new Promise(r => setTimeout(r, 1500));
+}
+
+// research goal -> evidence
+let jr = await (await fetch('/v1/research', {method:'POST', headers:{'Content-Type':'application/json'},
+  body: JSON.stringify({goal:'Are ultra-processed foods linked to heart disease?'})})).json();
+let rr = await (await fetch(`/v1/research/${jr.job_id}`)).json();
+rr.findings.forEach(f => console.log(f.confidence, f.finding, f.source_url, f.quote));
+
+// ask -> one AI paragraph (uses OLLAMA_API_KEY when set)
+let ans = await (await fetch('/v1/ask', {method:'POST', headers:{'Content-Type':'application/json'},
+  body: JSON.stringify({question:'Are ultra-processed foods linked to heart disease?'})})).json();
+console.log(ans.paragraph);
+ans.sources.forEach(s => console.log('-', s.title, s.url));</pre>
+      <p class="muted">AI agents can also use MCP: run <code>webgather mcp</code> and point Claude/Cursor at it.</p>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('nav button').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  $('tab-' + b.dataset.tab).classList.add('active');
+});
+
+fetch('/api-info').then(r => r.json()).then(i => {
+  $('v').textContent = i.version;
+  if (i.llm_available === false) $('a-ai-note').style.display = 'block';
+}).catch(() => {});
+
+const POLL = 1200;
+function poll(url, out, stop) {
+  const tick = async () => {
+    try {
+      const j = await (await fetch(url)).json();
+      out.innerHTML = renderJob(j);
+      if (j.state === 'done' || j.state === 'error') stop();
+      else setTimeout(tick, POLL);
+    } catch (e) { out.innerHTML = `<p class="muted">poll error: ${esc(e.message)}</p>`; }
+  };
+  tick();
+}
+
+function badge(j) {
+  if (j.state === 'done') return '<span class="badge done">done</span>';
+  if (j.state === 'error' || j.error) return '<span class="badge err">error</span>';
+  return '<span class="badge">running&hellip;</span>';
+}
+
+function renderJob(j) {
+  let h = `<h3 style="margin:0 0 8px">job ${esc(j.job_id)} ${badge(j)}</h3>`;
+  if (j.error) h += `<p style="color:var(--err)">${esc(j.error)}</p>`;
+  if (j.status) {
+    const s = j.status;
+    h += `<p class="muted">visited ${s.visited} &middot; ok ${s.ok} &middot; empty ${s.empty} &middot; errors ${s.errors} &middot; duplicates ${s.duplicates} &middot; blocked ${s.blocked}</p>`;
+    if (j.articles) h += `<p class="muted">articles: ${j.articles}</p>`;
+    if (j.written) h += `<p class="muted">${esc(j.written.join('<br>'))}</p>`;
+  }
+  if (j.findings) {
+    h += '<table><tr><th>#</th><th>Confidence</th><th>Finding / quote / source</th></tr>';
+    j.findings.forEach((f, i) => {
+      h += `<tr><td>${i+1}</td><td>${f.confidence}</td>
+        <td><strong>${esc(f.finding)}</strong><br>
+        <span class="ptag">${f.quote ? '&ldquo;'+esc(f.quote)+'&rdquo;' : ''}</span><br>
+        ${f.source_url ? `<a href="${esc(f.source_url)}" target="_blank">${esc(f.source_url)}</a>` : ''}
+        ${f.page_title ? `<br><span class="ptag">${esc(f.page_title)}</span>` : ''}
+        </td></tr>`;
+    });
+    h += '</table>';
+  }
+  return h;
+}
+
+async function doAsk() {
+  const q = $('a-q').value.trim(); if (!q) return;
+  const out = $('a-out');
+  out.innerHTML = '<p class="muted">searching the web, reading pages, composing the answer&hellip;</p>';
+  try {
+    const body = { question: q, use_llm: $('a-llm').checked };
+    const r = await fetch('/v1/ask', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const d = await r.json();
+    if (d.detail) { out.innerHTML = `<p style="color:var(--err)">${esc(d.detail)}</p>`; return; }
+    out.innerHTML = renderAnswer(d);
+  } catch (e) { out.innerHTML = `<p style="color:var(--err)">${esc(e.message)}</p>`; }
+}
+
+function renderAnswer(d) {
+  let h = `<div class="card" style="border-left:3px solid var(--acc)">
+    <div style="color:var(--muted);font-size:12px;margin-bottom:6px">
+      ${d.used_llm ? 'AI-written answer' : 'compiled answer (set OLLAMA_API_KEY in .env for an AI-written one)'}
+    </div>
+    <div style="font-size:15px;line-height:1.65">${esc(d.paragraph)}</div>
+  </div>`;
+  if (d.sources && d.sources.length) {
+    h += '<div class="card"><h3 style="margin-top:0">Sources</h3><ol style="margin:0;padding-left:20px">';
+    d.sources.forEach(s => {
+      if (!s.url) return;
+      h += `<li style="margin-bottom:8px"><a href="${esc(s.url)}" target="_blank">${esc(s.title || s.url)}</a>
+        <span class="ptag"> (${esc(s.engines.join(', '))})</span></li>`;
+    });
+    h += '</ol></div>';
+  }
+  if (d.findings && d.findings.length) {
+    h += '<details><summary>Evidence used (' + d.findings.length + ')</summary><div class="card">';
+    d.findings.forEach((f, i) => {
+      h += `<p style="margin:8px 0"><strong>${i+1}. ${esc(f.finding)}</strong><br>
+        <span class="ptag">${f.quote ? '&ldquo;'+esc(f.quote)+'&rdquo;' : ''}</span><br>
+        ${f.source_url ? `<a href="${esc(f.source_url)}" target="_blank">${esc(f.source_url)}</a>` : ''}
+        <span class="ptag"> confidence ${f.confidence}</span></p>`;
+    });
+    h += '</div></details>';
+  }
+  return h;
+}
+
+async function doSearch() {
+  const q = $('s-q').value.trim(); if (!q) return;
+  const eng = $('s-engine').value;
+  const out = $('s-out');
+  out.innerHTML = '<p class="muted">searching&hellip;</p>';
+  try {
+    const r = await fetch(`/v1/search?q=${encodeURIComponent(q)}&engine=${eng}&limit=8`);
+    const d = await r.json();
+    if (!d.results) { out.innerHTML = `<p style="color:var(--err)">${esc(d.detail || 'no results')}</p>`; return; }
+    let h = `<p class="muted">${d.results.length} results (${esc(eng)})</p><table><tr><th>#</th><th>Title / snippet</th><th>Source</th></tr>`;
+    d.results.forEach((x, i) => {
+      h += `<tr><td>${i+1}</td><td><a href="${esc(x.url)}" target="_blank">${esc(x.title)}</a>
+        ${x.snippet ? `<br><span class="ptag">${esc(x.snippet)}</span>` : ''}</td>
+        <td class="ptag">${esc(x.engine)}${x.published_utc ? '<br>'+esc(x.published_utc.slice(0,10)) : ''}</td></tr>`;
+    });
+    h += '</table>';
+    out.innerHTML = h;
+  } catch (e) { out.innerHTML = `<p style="color:var(--err)">${esc(e.message)}</p>`; }
+}
+
+async function doCrawl() {
+  const sources = $('c-sources').value.split(',').map(s => s.trim()).filter(Boolean);
+  if (!sources.length) return;
+  const out = $('c-out');
+  out.innerHTML = '<p class="muted">starting crawl&hellip;</p>';
+  try {
+    const body = { sources, options: { max_pages: parseInt($('c-max').value || '20', 10) || 20 } };
+    const fb = $('c-block').value;
+    if (fb) body.options.blocked = fb.split(',').map(s => s.trim()).filter(Boolean);
+    const j = await (await fetch('/v1/jobs', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) })).json();
+    poll(`/v1/jobs/${j.job_id}`, out, () => {});
+  } catch (e) { out.innerHTML = `<p style="color:var(--err)">${esc(e.message)}</p>`; }
+}
+
+async function doSearchCrawl() {
+  const q = $('c-q').value.trim(); if (!q) return;
+  const out = $('c-out');
+  out.innerHTML = '<p class="muted">searching, then crawling&hellip;</p>';
+  try {
+    const j = await (await fetch('/v1/search-and-crawl', { method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ query: q, engine: $('c-engine').value, limit: 5 }) })).json();
+    poll(`/v1/jobs/${j.job_id}`, out, () => {});
+  } catch (e) { out.innerHTML = `<p style="color:var(--err)">${esc(e.message)}</p>`; }
+}
+
+async function doResearch() {
+  const goal = $('r-goal').value.trim(); if (!goal) return;
+  const out = $('r-out');
+  out.innerHTML = '<p class="muted">planning searches, reading pages&hellip;</p>';
+  try {
+    const body = { goal, options: { max_sites: parseInt($('r-sites').value || '6', 10) || 6, use_llm: $('r-llm').checked } };
+    const j = await (await fetch('/v1/research', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) })).json();
+    poll(`/v1/research/${j.job_id}`, out, () => {});
+  } catch (e) { out.innerHTML = `<p style="color:var(--err)">${esc(e.message)}</p>`; }
+}
+</script>
+</body>
+</html>

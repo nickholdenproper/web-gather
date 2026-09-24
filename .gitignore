@@ -8,9 +8,9 @@ dist/
 # scraped output
 output/
 scraped/
-*.html
 api_jobs/
 research_jobs/
+__pypackages__/
 
 # secrets
 .env

@@ -207,12 +207,15 @@ def create_app(
 
     @app.get("/api-info")
     def api_info() -> dict:
+        from .answer import client_if_available
+
         return {
             "service": "web-gather",
             "version": __version__,
             "docs": "/docs",
             "gui": "/",
             "cors_open": origins == ["*"],
+            "llm_available": client_if_available(True) is not None,
         }
 
     # ---------------- crawl jobs ----------------

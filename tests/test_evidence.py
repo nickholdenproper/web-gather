@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from web_gather.evidence import EvidenceItem, extract_findings, write_findings
+from web_gather.evidence import EvidenceItem, clean_snippet, extract_findings, write_findings
 
 GOAL = "how much exercise do adults need per week"
 
@@ -47,6 +47,25 @@ class ExtractTest(unittest.TestCase):
         self.assertEqual(items[0].finding, "150 minutes per week")
         self.assertIn("150 minutes", items[0].quote)
         self.assertEqual(items[0].confidence, 0.8)
+
+
+class CleanSnippetTest(unittest.TestCase):
+    def test_strips_markdown_and_tables(self):
+        dirty = "| Elon Musk |\n| --- |\n\nHe is known for [Tesla and SpaceX](https://x.com). See https://wiki.org"
+        clean = clean_snippet(dirty)
+        self.assertNotIn("|", clean)
+        self.assertNotIn("http", clean)
+        self.assertIn("Tesla and SpaceX", clean)
+
+    def test_cuts_at_sentence_boundary(self):
+        long = "Elon Musk is the founder of SpaceX and a senior advisor. This trailing filler sentence should be trimmed away completely."
+        clean = clean_snippet(long)
+        self.assertIn("Elon Musk is the founder", clean)
+        self.assertIn("advisor", clean)
+        self.assertNotIn("trailing filler", clean)
+
+    def test_short_passthrough(self):
+        self.assertEqual(clean_snippet("short answer ok"), "short answer ok")
 
 
 class WriteTest(unittest.TestCase):

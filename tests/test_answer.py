@@ -73,12 +73,13 @@ class HeuristicParagraphTest(unittest.TestCase):
 
     def test_findings_compiled(self):
         items = [
-            EvidenceItem(finding="A claim about adults",
+            EvidenceItem(finding="Adults should get at least 150 minutes of "
+                                 "moderate exercise every week for heart health",
                          source_url="https://gov.org/x", quote="quote a", confidence=0.9)
         ]
         selected = [SelectedSite("https://gov.org/x", "T", "", 70, ["ddg"], [1])]
         text = _paragraph_heuristic("how much exercise do adults need", items, selected)
-        self.assertIn("A claim about adults", text)
+        self.assertIn("150 minutes", text)
         self.assertIn("gov.org", text)
 
 
