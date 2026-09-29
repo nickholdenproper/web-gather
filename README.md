@@ -18,6 +18,10 @@ services, no per-site selectors.
 - **Connectable**: browser GUI, REST API with open CORS (any website can call it),
   and an MCP server so Claude/Cursor/any AI can use the tools.
 
+<p align="center">
+  <a href='https://ko-fi.com/B4I827USQY' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi3.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a>
+</p>
+
 ## Quick start
 
 Double-click `run.bat` (Windows) — it sets up a venv and opens the web GUI at
@@ -121,6 +125,15 @@ heuristics: still full searches + evidence, just no prose report.
 5. **Choose** — cross-engine agreement + goal relevance + freshness penalties.
 6. **Target** — goal-aware extraction keeps only goal-relevant passages.
 7. **Clean+Output** — normalization + fingerprints collapse duplicates; every finding ships as an `EvidenceItem` with an exact quote and confidence.
+
+## Support
+
+Free to use, and it stays that way. If it saved you time, you can support it
+here:
+
+<a href='https://ko-fi.com/B4I827USQY' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi3.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a>
+
+No feature is gated behind a donation.
 
 ## License
 
